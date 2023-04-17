@@ -20,7 +20,7 @@ type Route struct {
 	Regexp     *regexp.Regexp
 }
 
-type ParameterName string
+type ParametersKey string
 
 func NewRouter() *Router {
 	return &Router{}
@@ -70,10 +70,11 @@ func (r *Router) Handler() http.HandlerFunc {
 		for _, route := range r.Routes {
 			if route.matchPath(req.URL.Path) && route.Method == req.Method {
 				parameters := route.Regexp.FindStringSubmatch(req.URL.Path)
-				ctx := req.Context()
+				parametersMap := make(map[string]string, len(route.Parameters))
 				for i, parameter := range route.Parameters {
-					ctx = context.WithValue(ctx, ParameterName(parameter), parameters[i+1])
+					parametersMap[parameter] = parameters[i+1]
 				}
+				ctx := context.WithValue(req.Context(), ParametersKey("parameters"), parametersMap)
 				route.Handler(w, req.WithContext(ctx))
 			}
 		}
@@ -82,4 +83,8 @@ func (r *Router) Handler() http.HandlerFunc {
 
 func (r *Route) matchPath(path string) bool {
 	return r.Regexp.MatchString(path) && r.Segments == len(strings.Split(path, "/"))-1
+}
+
+func Parameters(req *http.Request) map[string]string {
+	return req.Context().Value(ParametersKey("parameters")).(map[string]string)
 }

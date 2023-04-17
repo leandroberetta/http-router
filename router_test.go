@@ -31,8 +31,9 @@ func TestAddRoute(t *testing.T) {
 func TestGetRequest(t *testing.T) {
 	r := NewRouter()
 	r.Get("/namespaces/:namespace/deployments/:deployment", func(w http.ResponseWriter, req *http.Request) {
-		namespace := req.Context().Value(ParameterName("namespace")).(string)
-		deployment := req.Context().Value(ParameterName("deployment")).(string)
+		parameters := Parameters(req)
+		namespace := parameters["namespace"]
+		deployment := parameters["deployment"]
 		w.Write([]byte(namespace + "/" + deployment))
 	})
 	req, err := http.NewRequest("GET", "/namespaces/bookinfo/deployments/ratings", nil)

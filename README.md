@@ -17,10 +17,10 @@ import (
 func main() {
 	r := router.NewRouter()
 	r.Get("/api/namespaces/:namespace/deployments/:deployment", func(w http.ResponseWriter, req *http.Request) {
-		namespace := req.Context().Value(router.ParameterName("namespace")).(string)
-		deployment := req.Context().Value(router.ParameterName("deployment")).(string)
-
-		fmt.Printf("Namespace: %s / Application: %s", namespace, deployment)
+		parameters := Parameters(req)
+		namespace := parameters["namespace"]
+		deployment := parameters["deployment"]
+		w.Write([]byte(namespace + "/" + deployment))
 	})
 	http.ListenAndServe(":8080", r.Handler())
 }
