@@ -59,6 +59,7 @@ func (r *Router) AddStaticRoute(path, dir string) {
 			fs.ServeHTTP(w, req)
 		},
 		IsStatic: true,
+		Segments: len(strings.Split(path, "/")) - 1,
 		Regexp:   regexp,
 		Method:   http.MethodGet,
 	}
@@ -88,8 +89,9 @@ func (r *Router) Static(path, dir string) {
 func (r *Router) Handler() http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		for _, route := range r.Routes {
-			if route.matchPath(req.URL.Path) && route.Method == req.Method {
-				if !route.IsStatic {
+			// TODO: Support multiple static routes
+			if !route.IsStatic {
+				if route.matchPath(req.URL.Path) && route.Method == req.Method {
 					parameters := route.Regexp.FindStringSubmatch(req.URL.Path)
 					parametersMap := make(map[string]string, len(route.Parameters))
 					for i, parameter := range route.Parameters {
@@ -97,9 +99,9 @@ func (r *Router) Handler() http.HandlerFunc {
 					}
 					ctx := context.WithValue(req.Context(), ParametersKey("parameters"), parametersMap)
 					route.Handler(w, req.WithContext(ctx))
-				} else {
-					route.Handler(w, req)
 				}
+			} else {
+				route.Handler(w, req)
 			}
 		}
 	}

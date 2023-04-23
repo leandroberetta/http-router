@@ -1,10 +1,34 @@
 package router
 
 import (
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
+
+func TestStaticRoute(t *testing.T) {
+	r := NewRouter()
+	r.Static("/static", "test/static")
+	req, err := http.NewRequest("GET", "/hello", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(r.Handler())
+	handler.ServeHTTP(rr, req)
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("Status code error: got %v want %v", status, http.StatusOK)
+	}
+	body, _ := io.ReadAll(rr.Body)
+	fmt.Println((string(body)))
+	containsHelloWorld := strings.Contains(string(body), "hello")
+	if !containsHelloWorld {
+		t.Errorf("Body error, expected hello string")
+	}
+}
 
 func TestAddRoute(t *testing.T) {
 	r := NewRouter()
