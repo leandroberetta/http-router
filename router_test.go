@@ -12,7 +12,7 @@ import (
 func TestStaticRoute(t *testing.T) {
 	r := NewRouter()
 	r.Static("/static", "test/static")
-	req, err := http.NewRequest("GET", "/hello", nil)
+	req, err := http.NewRequest("GET", "/static/hello", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,6 +54,7 @@ func TestAddRoute(t *testing.T) {
 
 func TestGetRequest(t *testing.T) {
 	r := NewRouter()
+	r.Static("/static", "test/static")
 	r.Get("/namespaces/:namespace/deployments/:deployment", func(w http.ResponseWriter, req *http.Request) {
 		parameters := Parameters(req)
 		namespace := parameters["namespace"]

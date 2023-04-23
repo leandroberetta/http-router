@@ -52,14 +52,14 @@ func (r *Router) AddRoute(path, method string, handler http.HandlerFunc) {
 
 func (r *Router) AddStaticRoute(path, dir string) {
 	fs := http.FileServer(http.Dir(dir))
-	regexp, _ := regexp.Compile(path)
+	regexp, _ := regexp.Compile(path + "/*")
 	route := Route{
 		Path: path,
 		Handler: func(w http.ResponseWriter, req *http.Request) {
+			req.URL.Path = strings.TrimPrefix(req.URL.Path, path)
 			fs.ServeHTTP(w, req)
 		},
 		IsStatic: true,
-		Segments: len(strings.Split(path, "/")) - 1,
 		Regexp:   regexp,
 		Method:   http.MethodGet,
 	}
@@ -90,8 +90,10 @@ func (r *Router) Handler() http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		for _, route := range r.Routes {
 			// TODO: Support multiple static routes
-			if !route.IsStatic {
-				if route.matchPath(req.URL.Path) && route.Method == req.Method {
+			if route.matchPath(req.URL.Path) && route.Method == req.Method {
+				if route.IsStatic {
+					route.Handler(w, req)
+				} else {
 					parameters := route.Regexp.FindStringSubmatch(req.URL.Path)
 					parametersMap := make(map[string]string, len(route.Parameters))
 					for i, parameter := range route.Parameters {
@@ -100,15 +102,17 @@ func (r *Router) Handler() http.HandlerFunc {
 					ctx := context.WithValue(req.Context(), ParametersKey("parameters"), parametersMap)
 					route.Handler(w, req.WithContext(ctx))
 				}
-			} else {
-				route.Handler(w, req)
 			}
 		}
 	}
 }
 
 func (r *Route) matchPath(path string) bool {
-	return r.Regexp.MatchString(path) && r.Segments == len(strings.Split(path, "/"))-1
+	matched := r.Regexp.MatchString(path)
+	if !r.IsStatic {
+		return matched && r.Segments == len(strings.Split(path, "/"))-1
+	}
+	return matched
 }
 
 func Parameters(req *http.Request) map[string]string {
