@@ -57,6 +57,7 @@ func (r *Router) AddStaticRoute(path, dir string) {
 		Handler: func(w http.ResponseWriter, req *http.Request) {
 			fs.ServeHTTP(w, req)
 		},
+		IsStatic: true,
 	}
 	r.Routes = append(r.Routes, route)
 }
