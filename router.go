@@ -52,12 +52,14 @@ func (r *Router) AddRoute(path, method string, handler http.HandlerFunc) {
 
 func (r *Router) AddStaticRoute(path, dir string) {
 	fs := http.FileServer(http.Dir(dir))
+	regexp, _ := regexp.Compile(path)
 	route := Route{
 		Path: path,
 		Handler: func(w http.ResponseWriter, req *http.Request) {
 			fs.ServeHTTP(w, req)
 		},
 		IsStatic: true,
+		Regexp:   regexp,
 	}
 	r.Routes = append(r.Routes, route)
 }
