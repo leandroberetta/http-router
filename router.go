@@ -18,6 +18,7 @@ type Route struct {
 	Method     string
 	Handler    http.HandlerFunc
 	Regexp     *regexp.Regexp
+	IsStatic   bool
 }
 
 type ParametersKey string
@@ -49,6 +50,17 @@ func (r *Router) AddRoute(path, method string, handler http.HandlerFunc) {
 	r.Routes = append(r.Routes, route)
 }
 
+func (r *Router) AddStaticRoute(path, dir string) {
+	fs := http.FileServer(http.Dir(dir))
+	route := Route{
+		Path: path,
+		Handler: func(w http.ResponseWriter, req *http.Request) {
+			fs.ServeHTTP(w, req)
+		},
+	}
+	r.Routes = append(r.Routes, route)
+}
+
 func (r *Router) Get(path string, handler http.HandlerFunc) {
 	r.AddRoute(path, http.MethodGet, handler)
 }
@@ -65,17 +77,25 @@ func (r *Router) Delete(path string, handler http.HandlerFunc) {
 	r.AddRoute(path, http.MethodDelete, handler)
 }
 
+func (r *Router) Static(path, dir string) {
+	r.AddStaticRoute(path, dir)
+}
+
 func (r *Router) Handler() http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		for _, route := range r.Routes {
 			if route.matchPath(req.URL.Path) && route.Method == req.Method {
-				parameters := route.Regexp.FindStringSubmatch(req.URL.Path)
-				parametersMap := make(map[string]string, len(route.Parameters))
-				for i, parameter := range route.Parameters {
-					parametersMap[parameter] = parameters[i+1]
+				if !route.IsStatic {
+					parameters := route.Regexp.FindStringSubmatch(req.URL.Path)
+					parametersMap := make(map[string]string, len(route.Parameters))
+					for i, parameter := range route.Parameters {
+						parametersMap[parameter] = parameters[i+1]
+					}
+					ctx := context.WithValue(req.Context(), ParametersKey("parameters"), parametersMap)
+					route.Handler(w, req.WithContext(ctx))
+				} else {
+					route.Handler(w, req)
 				}
-				ctx := context.WithValue(req.Context(), ParametersKey("parameters"), parametersMap)
-				route.Handler(w, req.WithContext(ctx))
 			}
 		}
 	}
