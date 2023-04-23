@@ -60,6 +60,7 @@ func (r *Router) AddStaticRoute(path, dir string) {
 		},
 		IsStatic: true,
 		Regexp:   regexp,
+		Method:   http.MethodGet,
 	}
 	r.Routes = append(r.Routes, route)
 }
