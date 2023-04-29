@@ -28,12 +28,9 @@ type ParametersRoute struct {
 
 type StaticRoute struct {
 	BaseRoute
-	Redirect bool
 }
 
 type ParametersKey string
-
-const INDEX_HTML = "index.html"
 
 func NewRouter() *Router {
 	return &Router{}
@@ -78,9 +75,6 @@ func (r *Router) AddStaticRoute(path, dir string) {
 			Method: http.MethodGet,
 		},
 	}
-	if path == INDEX_HTML {
-		route.Redirect = true
-	}
 	r.StaticRoutes = append(r.StaticRoutes, route)
 }
 
@@ -120,9 +114,6 @@ func (r *Router) Handler() http.HandlerFunc {
 		}
 		for _, route := range r.StaticRoutes {
 			if route.matchPatch(req.URL.Path) {
-				if req.URL.Path == INDEX_HTML {
-					http.Redirect(w, req, "/", http.StatusMovedPermanently)
-				}
 				route.Handler(w, req)
 				return
 			}
