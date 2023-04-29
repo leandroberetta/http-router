@@ -8,26 +8,38 @@ import (
 )
 
 type Router struct {
-	Routes []Route
+	ParametersRoutes []ParametersRoute
+	StaticRoutes     []StaticRoute
 }
 
-type Route struct {
-	Path       string
+type BaseRoute struct {
+	Path    string
+	Method  string
+	Handler http.HandlerFunc
+	Regexp  *regexp.Regexp
+}
+
+type ParametersRoute struct {
+	BaseRoute
 	Parameters []string
 	Segments   int
-	Method     string
-	Handler    http.HandlerFunc
-	Regexp     *regexp.Regexp
 	IsStatic   bool
 }
 
+type StaticRoute struct {
+	BaseRoute
+	Redirect bool
+}
+
 type ParametersKey string
+
+const INDEX_HTML = "index.html"
 
 func NewRouter() *Router {
 	return &Router{}
 }
 
-func (r *Router) AddRoute(path, method string, handler http.HandlerFunc) {
+func (r *Router) AddParametersRoute(path, method string, handler http.HandlerFunc) {
 	parameters := []string{}
 	for _, p := range strings.Split(path, "/") {
 		if parameter, ok := strings.CutPrefix(p, ":"); ok {
@@ -39,47 +51,53 @@ func (r *Router) AddRoute(path, method string, handler http.HandlerFunc) {
 		pathRegexp = strings.Replace(pathRegexp, ":"+parameter, "([a-z]+)", 1)
 	}
 	regexp, _ := regexp.Compile(pathRegexp)
-	route := Route{
-		Path:       path,
-		Method:     method,
-		Segments:   len(strings.Split(path, "/")) - 1,
+	route := ParametersRoute{
+		BaseRoute: BaseRoute{
+			Path:    path,
+			Method:  method,
+			Handler: handler,
+			Regexp:  regexp,
+		},
 		Parameters: parameters,
-		Handler:    handler,
-		Regexp:     regexp,
+		Segments:   len(strings.Split(path, "/")) - 1,
 	}
-	r.Routes = append(r.Routes, route)
+	r.ParametersRoutes = append(r.ParametersRoutes, route)
 }
 
 func (r *Router) AddStaticRoute(path, dir string) {
 	fs := http.FileServer(http.Dir(dir))
 	regexp, _ := regexp.Compile(path + "/*")
-	route := Route{
-		Path: path,
-		Handler: func(w http.ResponseWriter, req *http.Request) {
-			req.URL.Path = strings.TrimPrefix(req.URL.Path, path)
-			fs.ServeHTTP(w, req)
+	route := StaticRoute{
+		BaseRoute: BaseRoute{
+			Path: path,
+			Handler: func(w http.ResponseWriter, req *http.Request) {
+				req.URL.Path = strings.TrimPrefix(req.URL.Path, path)
+				fs.ServeHTTP(w, req)
+			},
+			Regexp: regexp,
+			Method: http.MethodGet,
 		},
-		IsStatic: true,
-		Regexp:   regexp,
-		Method:   http.MethodGet,
 	}
-	r.Routes = append(r.Routes, route)
+	if path == INDEX_HTML {
+		route.Redirect = true
+	}
+	r.StaticRoutes = append(r.StaticRoutes, route)
 }
 
 func (r *Router) Get(path string, handler http.HandlerFunc) {
-	r.AddRoute(path, http.MethodGet, handler)
+	r.AddParametersRoute(path, http.MethodGet, handler)
 }
 
 func (r *Router) Post(path string, handler http.HandlerFunc) {
-	r.AddRoute(path, http.MethodPost, handler)
+	r.AddParametersRoute(path, http.MethodPost, handler)
 }
 
 func (r *Router) Put(path string, handler http.HandlerFunc) {
-	r.AddRoute(path, http.MethodPut, handler)
+	r.AddParametersRoute(path, http.MethodPut, handler)
 }
 
 func (r *Router) Delete(path string, handler http.HandlerFunc) {
-	r.AddRoute(path, http.MethodDelete, handler)
+	r.AddParametersRoute(path, http.MethodDelete, handler)
 }
 
 func (r *Router) Static(path, dir string) {
@@ -88,31 +106,36 @@ func (r *Router) Static(path, dir string) {
 
 func (r *Router) Handler() http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
-		for _, route := range r.Routes {
-			// TODO: Support multiple static routes
+		for _, route := range r.ParametersRoutes {
 			if route.matchPath(req.URL.Path) && route.Method == req.Method {
-				if route.IsStatic {
-					route.Handler(w, req)
-				} else {
-					parameters := route.Regexp.FindStringSubmatch(req.URL.Path)
-					parametersMap := make(map[string]string, len(route.Parameters))
-					for i, parameter := range route.Parameters {
-						parametersMap[parameter] = parameters[i+1]
-					}
-					ctx := context.WithValue(req.Context(), ParametersKey("parameters"), parametersMap)
-					route.Handler(w, req.WithContext(ctx))
+				parameters := route.Regexp.FindStringSubmatch(req.URL.Path)
+				parametersMap := make(map[string]string, len(route.Parameters))
+				for i, parameter := range route.Parameters {
+					parametersMap[parameter] = parameters[i+1]
 				}
+				ctx := context.WithValue(req.Context(), ParametersKey("parameters"), parametersMap)
+				route.Handler(w, req.WithContext(ctx))
+				return
+			}
+		}
+		for _, route := range r.StaticRoutes {
+			if route.matchPatch(req.URL.Path) {
+				if req.URL.Path == INDEX_HTML {
+					http.Redirect(w, req, "/", http.StatusMovedPermanently)
+				}
+				route.Handler(w, req)
+				return
 			}
 		}
 	}
 }
 
-func (r *Route) matchPath(path string) bool {
-	matched := r.Regexp.MatchString(path)
-	if !r.IsStatic {
-		return matched && r.Segments == len(strings.Split(path, "/"))-1
-	}
-	return matched
+func (r *ParametersRoute) matchPath(path string) bool {
+	return r.Regexp.MatchString(path) && r.Segments == len(strings.Split(path, "/"))-1
+}
+
+func (r *StaticRoute) matchPatch(path string) bool {
+	return r.Regexp.MatchString(path)
 }
 
 func Parameters(req *http.Request) map[string]string {

@@ -30,10 +30,25 @@ func TestStaticRoute(t *testing.T) {
 	}
 }
 
+func TestStaticRouteIndex(t *testing.T) {
+	r := NewRouter()
+	r.Static("/static", "test/static")
+	req, err := http.NewRequest("GET", "/static/index.html", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(r.Handler())
+	handler.ServeHTTP(rr, req)
+	if status := rr.Code; status != http.StatusMovedPermanently {
+		t.Errorf("Status code error: got %v want %v", status, http.StatusMovedPermanently)
+	}
+}
+
 func TestAddRoute(t *testing.T) {
 	r := NewRouter()
-	r.AddRoute("/namespaces/:namespace/deployments/:deployment", http.MethodGet, func(w http.ResponseWriter, req *http.Request) {})
-	route := r.Routes[0]
+	r.AddParametersRoute("/namespaces/:namespace/deployments/:deployment", http.MethodGet, func(w http.ResponseWriter, req *http.Request) {})
+	route := r.ParametersRoutes[0]
 	if route.Method != http.MethodGet {
 		t.Errorf("Method error, got: %s, want: %s.", route.Method, http.MethodGet)
 	}
